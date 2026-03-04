@@ -35,6 +35,12 @@ const SessionsSpawnToolSchema = Type.Object({
   cleanup: optionalStringEnum(["delete", "keep"] as const),
   sandbox: optionalStringEnum(SESSIONS_SPAWN_SANDBOX_MODES),
 
+  // When false, sub-agent results are always routed through the requester
+  // session (triggering a new agent turn) instead of being sent directly to
+  // the external channel. Useful for multi-agent orchestration where the
+  // requester must process every sub-agent result before proceeding.
+  directCompletion: Type.Optional(Type.Boolean()),
+
   // Inline attachments (snapshot-by-value).
   // NOTE: Attachment contents are redacted from transcript persistence by sanitizeToolCallInputs.
   attachments: Type.Optional(
@@ -109,6 +115,7 @@ export function createSessionsSpawnTool(opts?: {
           ? Math.max(0, Math.floor(timeoutSecondsCandidate))
           : undefined;
       const thread = params.thread === true;
+      const directCompletion = params.directCompletion !== false;
       const attachments = Array.isArray(params.attachments)
         ? (params.attachments as Array<{
             name: string;
@@ -160,7 +167,7 @@ export function createSessionsSpawnTool(opts?: {
           mode,
           cleanup,
           sandbox,
-          expectsCompletionMessage: true,
+          expectsCompletionMessage: directCompletion,
           attachments,
           attachMountPath:
             params.attachAs && typeof params.attachAs === "object"
