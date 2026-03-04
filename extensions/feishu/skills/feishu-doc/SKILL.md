@@ -195,6 +195,63 @@ Rules:
 2. Check `block_types` in response for Table, Image, Code, etc.
 3. If structured content exists, use `action: "list_blocks"` for full data
 
+---
+
+## ⚠️ 重要：创建文档的正确工作流（必读）
+
+### 已知问题
+
+1. **`write` 和 `append` API 经常返回 400 错误** - 不要依赖这两个动作来写入内容
+2. **`create_table_with_values` 返回 400 错误但会创建空表格** - 需要手动填充单元格
+3. **`update_block` 更新 Page 根块会把内容当作标题** - 必须更新具体的 Text 块
+
+### ✅ 正确的文档创建流程
+
+```
+步骤 1: 创建文档（必须带 owner_open_id）
+   feishu_doc action: "create", title: "标题", owner_open_id: "ou_xxx"
+
+步骤 2: 创建表格结构
+   feishu_doc action: "create_table", doc_token: "xxx", row_size: N, column_size: M
+
+步骤 3: 获取所有块的 block_id
+   feishu_doc action: "list_blocks", doc_token: "xxx"
+   → 找到每个 Text 块的 block_id（每个 TableCell 下有一个 Text 子块）
+
+步骤 4: 逐个更新 Text 块内容
+   feishu_doc action: "update_block", doc_token: "xxx", block_id: "doxcnTextBlockId", content: "单元格内容"
+   → 注意：更新的是 Text 块（block_type: 2），不是 TableCell 块（block_type: 32）
+
+步骤 5: 验证文档内容
+   feishu_doc action: "read", doc_token: "xxx"
+```
+
+### ❌ 错误做法（不要使用）
+
+```json
+// 错误：write/append 会返回 400 错误
+{ "action": "write", "content": "markdown内容..." }
+
+// 错误：update_block 更新 Page 根块，内容变成标题
+{ "action": "update_block", "block_id": "文档根ID（与doc_token相同）", "content": "内容" }
+
+// 错误：create_table_with_values 会失败
+{ "action": "create_table_with_values", "values": [[...]] }
+```
+
+### 块类型参考
+
+| block_type | 名称      | 说明                           |
+| ---------- | --------- | ------------------------------ |
+| 1          | Page      | 文档根块，block_id = doc_token |
+| 2          | Text      | 文本块，可以更新内容           |
+| 31         | Table     | 表格块                         |
+| 32         | TableCell | 表格单元格，包含 Text 子块     |
+
+### 文档权限
+
+创建文档时**必须**传入 `owner_open_id`（从 inbound metadata 的 `sender_id` 获取），否则用户看不到文档内容。
+
 ## Configuration
 
 ```yaml
